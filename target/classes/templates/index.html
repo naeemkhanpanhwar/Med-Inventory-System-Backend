@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Medicine Inventory System</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-4">Medicine Inventory System</h1>
+
+    <!-- Form for Adding Medicine -->
+    <form id="addMedicineForm">
+        <div class="form-group">
+            <label>Name:</label>
+            <input type="text" id="name" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label>Price:</label>
+            <input type="number" id="price" step="0.01" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label>Quantity:</label>
+            <input type="number" id="quantity" class="form-control" required>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="addMedicine()">Add Medicine</button>
+    </form>
+
+    <!-- Form for Editing Medicine -->
+    <div id="editFormContainer" style="display: none;">
+        <h2 class="mt-4">Edit Medicine</h2>
+        <form id="editMedicineForm">
+            <input type="hidden" id="editId">
+            <div class="form-group">
+                <label>Name:</label>
+                <input type="text" id="editName" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Price:</label>
+                <input type="number" id="editPrice" step="0.01" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Quantity:</label>
+                <input type="number" id="editQuantity" class="form-control" required>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="updateMedicine()">Update Medicine</button>
+            <button type="button" class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
+        </form>
+    </div>
+
+    <h2 class="mt-4">Available Medicines</h2>
+    <ul id="medicineList" class="list-group">
+        <!-- Medicine items will be appended here -->
+    </ul>
+
+    <h2 class="mt-4">Add to Cart</h2>
+    <form id="cartForm">
+        <div class="form-group">
+            <label>Select Medicines:</label>
+            <select id="medicinesDropdown" class="form-control" multiple>
+                <!-- Medicine options will be appended here -->
+            </select>
+        </div>
+        <button type="button" class="btn btn-success" onclick="calculateTotal()">Calculate Total Price</button>
+        <button type="button" class="btn btn-info" onclick="printReceipt()">Print Receipt</button>
+
+    </form>
+
+    <h3 class="mt-4">Total Price: <span id="totalPrice">$0.00</span></h3>
+</div>
+
+<script>
+    function loadMedicines() {
+     $.ajax({
+         url: '/medicines/api/all',
+         type: 'GET',
+         success: function(response) {
+             if (Array.isArray(response)) {
+                 let medicineList = $('#medicineList');
+                 let medicinesDropdown = $('#medicinesDropdown');
+                 medicineList.empty();
+                 medicinesDropdown.empty();
+                 response.forEach(medicine => {
+                     medicineList.append(`
+                         <li class="list-group-item">
+                             <span>${medicine.name} ($${medicine.price.toFixed(2)}), Quantity: ${medicine.quantity}</span>
+                             <a href="javascript:void(0);" onclick="showUpdateForm(${medicine.id}, '${medicine.name}', ${medicine.price}, ${medicine.quantity})" class="btn btn-warning btn-sm ml-2">Edit</a>
+                             <a href="javascript:void(0);" onclick="deleteMedicine(${medicine.id})" class="btn btn-danger btn-sm ml-2">Delete</a>
+                         </li>
+                     `);
+                     medicinesDropdown.append(`
+                         <option value="${medicine.id}">${medicine.name} ($${medicine.price.toFixed(2)})</option>
+                     `);
+                 });
+             } else {
+                 console.error('Expected an array but got:', response);
+             }
+         },
+         error: function(xhr, status, error) {
+             console.error('Error loading medicines:', error);
+         }
+     });
+ }
+
+     function addMedicine() {
+     let name = $('#name').val();
+     let price = $('#price').val();
+     let quantity = $('#quantity').val();
+
+     $.ajax({
+    url: '/medicines',
+    type: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ name: name, price: parseFloat(price), quantity: parseInt(quantity) }),
+    success: function() {
+        loadMedicines();
+        $('#name').val('');
+        $('#price').val('');
+        $('#quantity').val('');
+    },
+    error: function(xhr, status, error) {
+        console.error('Error adding medicine:', error);
+    }
+});
+
+ }
+
+
+
+     function showUpdateForm(id, name, price, quantity) {
+         $('#editId').val(id);
+         $('#editName').val(name);
+         $('#editPrice').val(price);
+         $('#editQuantity').val(quantity);
+         $('#editFormContainer').show();
+     }
+
+    function updateMedicine() {
+    let id = $('#editId').val();
+    let name = $('#editName').val();
+    let price = $('#editPrice').val();
+    let quantity = $('#editQuantity').val();
+
+    $.ajax({
+        url: '/medicines/update/' + id,
+        type: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({ name: name, price: parseFloat(price), quantity: parseInt(quantity) }),
+        success: function() {
+            loadMedicines();
+            $('#editFormContainer').hide();
+        },
+        error: function(xhr, status, error) {
+            console.error('Error updating medicine:', error);
+        }
+    });
+}
+
+     function cancelEdit() {
+         $('#editFormContainer').hide();
+     }
+
+     function deleteMedicine(id) {
+         if (confirm('Are you sure you want to delete this medicine?')) {
+             $.ajax({
+                 url: '/medicines/delete/' + id,
+                 type: 'DELETE',
+                 success: function() {
+                     loadMedicines();
+                 },
+                 error: function(xhr, status, error) {
+                     console.error('Error deleting medicine:', error);
+                 }
+             });
+         }
+     }
+
+     function calculateTotal() {
+         let selectedMedicines = $('#medicinesDropdown').val();
+         $.ajax({
+             type: 'POST',
+             url: '/medicines/cart',
+             contentType: 'application/json',
+             data: JSON.stringify(selectedMedicines),
+             success: function(totalPrice) {
+                 $('#totalPrice').text('$' + totalPrice.toFixed(2));
+             },
+             error: function(xhr, status, error) {
+                 console.error('Error calculating total price:', error);
+             }
+         });
+     }
+
+   function printReceipt() {
+    let selectedMedicines = $('#medicinesDropdown').val();
+    if (selectedMedicines.length === 0) {
+        alert('No medicines selected!');
+        return;
+    }
+
+    $.ajax({
+        type: 'POST',
+        url: '/medicines/cart',
+        contentType: 'application/json',
+        data: JSON.stringify(selectedMedicines),
+        success: function(response) {
+            // Basic error checking
+            if (!response || !Array.isArray(response.medicines) || typeof response.totalPrice !== 'number') {
+                console.error('Invalid response format:', response);
+                return;
+            }
+
+            // Create a new window for printing
+            let receiptWindow = window.open('', 'Print Receipt', 'height=600,width=800');
+
+            // Simple receipt content
+            let receiptContent = `
+                <html>
+                <head>
+                    <title>Receipt</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .container { width: 80%; margin: 0 auto; }
+                        .item { margin-bottom: 10px; }
+                        .total { font-weight: bold; }
+                        .header, .footer { text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1 class="header">Medicine Inventory System</h1>
+                        <h2 class="header">Receipt</h2>
+                        <p class="header">Date and Time: ${new Date().toLocaleString()}</p>
+                        <div>
+                            <h3>Selected Medicines</h3>
+                            <ul>
+            `;
+
+            response.medicines.forEach(medicine => {
+                receiptContent += `
+                    <li class="item">
+                        ${medicine.name} - $${medicine.price.toFixed(2)} x ${medicine.quantity}
+                    </li>
+                `;
+            });
+
+            receiptContent += `
+                            </ul>
+                            <p class="total">Total Price: $${response.totalPrice.toFixed(2)}</p>
+                        </div>
+                        <p class="footer">Thank you for shopping with us!</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // Write and print the receipt
+            receiptWindow.document.write(receiptContent);
+            receiptWindow.document.close();
+            receiptWindow.focus();
+            receiptWindow.print();
+        },
+        error: function(xhr, status, error) {
+            console.error('Error generating receipt:', error);
+        }
+    });
+}
+
+
+
+     $(document).ready(function() {
+         loadMedicines();
+     });
+</script>
+</body>
+</html>
