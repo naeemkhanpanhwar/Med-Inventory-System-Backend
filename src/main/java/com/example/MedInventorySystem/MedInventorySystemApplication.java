@@ -8,6 +8,10 @@ public class MedInventorySystemApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(MedInventorySystemApplication.class, args);
+
+		System.out.println("MedInventorySystem Application Started Successfully!");
 	}
+
+
 
 }
